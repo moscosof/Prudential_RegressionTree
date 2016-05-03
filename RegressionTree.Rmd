@@ -1,0 +1,123 @@
+---
+title: "Regression Tree"
+author: "Francia Moscoso"
+date: "May 1, 2016"
+output: html_document
+---
+
+```{r LoadLib, message=F, warning=F}
+library(dplyr)     
+library(corrplot) 
+library(ggplot2)
+library(gridExtra)
+library(rpart)
+library(rpart.plot)
+library(caret)
+library(e1071)
+```
+<br>
+<br>
+**Loading Data Sets**
+```{r comment="", echo=TRUE}
+# Working Directory
+setwd("~/SprintboardProject/PrudentialIns/RegressionTree") 
+
+train <- read.csv("../DataSets/train.csv", header = TRUE)
+test <-  read.csv("../DataSets/test.csv", header = TRUE)
+```
+<br>
+<br>
+**Function that populates missing values with the median**    
+```{r comment="", echo=TRUE}
+manage_na <- function(tempo)
+{
+  for(i in 1:ncol(tempo))
+  {
+    if(is.numeric(tempo[,i]))
+    {
+      tempo[is.na(tempo[,i]),i] <- median(tempo[!is.na(tempo[,i]),i])
+    }
+  }
+  tempo
+}
+```
+<br>
+**Analyze dependent variable Train Response** 
+```{r comment="", echo=TRUE}
+nrow(train) 
+
+summary(train$Response)
+
+table(train$Response)
+
+```
+<br>
+<br>
+**Applying Regression Tree method**
+```{r comment="", echo=TRUE}
+# We can run 'rpart' with na values without errors. 
+RegTree <- rpart(Response ~ ., data=train)
+prp(RegTree)
+```
+<br>
+**The Regression tree does not have many leaves and it is easy to interpretate. However, I don't see outputs for Responses closer to 7 or 8**
+<br>
+<br>
+**Making Predictions on test data set**
+```{r comment="", echo=TRUE}
+RegTree.pred = predict(RegTree, newdata = test)
+
+table(RegTree.pred)
+```
+**The Tree for the prediction on the Test data set does not have many leaves and it is easy to interpretate. However, I don't see outputs for Responses closer to 7 or 8**
+<br>
+<br>
+**Populate train$Response missing values with the median so we won't get errors in Cross Validation**
+```{r comment="", echo=TRUE}
+train <- manage_na(train[,-c(1)])     #   Except columns 1 (ID)    
+
+test <- manage_na(test[,-c(1)])
+
+```
+<br>
+<br>
+**Cross Validation**
+```{r comment="", echo=TRUE}
+tr.control <- trainControl(method="cv", number=10)
+cp.grid <- expand.grid(.cp=1:10)*0.001
+
+train$Product_Info_2 = NULL  # OTherwise, it will give error when predicting on test data set
+
+#train will give error if the data has na values
+tr <- train(Response ~ ., data=train, method = "rpart", trControl = tr.control, tuneGrid = cp.grid)
+
+tr
+```
+**The final value used for the model was cp = 0.001 with the best root mean square error(RMSE=1.975)**
+<br>
+<br>
+**Plot the best tree**
+```{r comment="", echo=TRUE}
+best.tree <- tr$finalModel
+
+# 65535 nodes
+best.tree
+
+prp(best.tree)
+
+## test$Product_Info_2 = NULL Gives error categorical variables
+best.tree.pred = predict(best.tree, newdata=test)
+  
+```
+<br>
+<br>
+**Predicting best tree on test data set**
+```{r comment="", echo=TRUE}
+## test$Product_Info_2 = NULL - Gives error categorical variables
+best.tree.pred = predict(best.tree, newdata=test)
+
+#Distribution of Response predicted on Test data set 
+summary(best.tree.pred)
+```
+<br>
+<br>
